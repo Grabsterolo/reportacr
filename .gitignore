@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Android
+android/.gradle/
+android/local.properties
+android/app/build/
+android/build/
+android/*.iml
+android/.idea/
+android/captures/
+
+# iOS
+ios/App/Pods/
+ios/App/build/
+ios/App/DerivedData/
+ios/App/*.xcuserstate
+ios/**/xcuserdata/
+ios/App/App.xcworkspace/xcuserdata/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Logs
+npm-debug.log*

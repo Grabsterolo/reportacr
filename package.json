@@ -1,0 +1,19 @@
+{
+  "name": "outputs",
+  "version": "1.0.0",
+  "description": "App web (PWA) para reportar y ver en un mapa en vivo cortes de luz, agua, internet, gas u otro servicio en Costa Rica. Sin necesidad de cuenta.",
+  "main": "sw.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/cli": "^8.4.1",
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/ios": "^8.4.1",
+    "docx": "^9.7.1"
+  }
+}

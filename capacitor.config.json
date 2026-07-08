@@ -1,0 +1,15 @@
+{
+  "appId": "cr.reportacr.app",
+  "appName": "ReportaCR",
+  "webDir": "www",
+  "backgroundColor": "#F1F3F4",
+  "server": {
+    "androidScheme": "https"
+  },
+  "ios": {
+    "contentInset": "always"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
