@@ -35,9 +35,28 @@ Probado extremo a extremo directamente contra la base de datos (inserción, fusi
 La forma más simple y gratuita:
 
 1. Sube estos archivos a un repositorio en GitHub.
-2. Conéctalo a **Vercel** o **Netlify** (plan gratuito) — despliegue en un clic, sin necesidad de configurar nada más porque es HTML/JS puro.
+2. Conéctalo a **Cloudflare Pages**, **Vercel** o **Netlify** (plan gratuito) — despliegue en un clic, sin necesidad de configurar nada más porque es HTML/JS puro.
 3. Consigue un dominio corto (ej. `reportacr.com` o similar) y apúntalo al despliegue.
 4. Comparte el link — el botón de WhatsApp ya está integrado para que cada reporte se pueda reenviar fácilmente.
+
+### Deploy en Cloudflare Pages
+
+El sitio real vive en `www/` (el resto del repo es el proyecto nativo de Android/iOS y no debe publicarse). Por eso el repo incluye un `wrangler.toml` en la raíz con:
+
+```toml
+name = "reportacr"
+pages_build_output_dir = "www"
+compatibility_date = "2026-07-08"
+```
+
+Al conectar el repo en Cloudflare Pages, esto le indica automáticamente que la carpeta de salida es `www` — sin este ajuste, Cloudflare busca `index.html` en la raíz del repo, no lo encuentra (ahí solo hay `android/`, `ios/`, `docs/`, etc.) y el deploy falla o muestra 404.
+
+Si el proyecto ya existía en el dashboard de Cloudflare y sigue sin funcionar, verifica también manualmente en **Settings → Builds & deployments**:
+- Framework preset: `None`
+- Build command: (vacío)
+- Build output directory: `www`
+
+Este cambio no afecta la compilación de Android/iOS: `capacitor.config.json` ya apunta a `www` como `webDir` de forma independiente, así que `npx cap copy` sigue funcionando igual.
 
 ## Base de datos (para referencia)
 
