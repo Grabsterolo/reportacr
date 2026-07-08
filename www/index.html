@@ -180,7 +180,10 @@
   .pill-btn.confirm { background:#e6f4ea; color:var(--ok); }
   .pill-btn.resolved { background:#e8f0fe; color:var(--blue-dark); }
   .pill-btn.deny { background:#fce8e6; color:var(--danger); }
-  .pill-btn.share { background:#25D366; color:white; display:block; text-align:center; text-decoration:none; width:100%; margin-top:8px; }
+  .pill-btn.share {
+    background:var(--blue); color:white; display:flex; align-items:center; justify-content:center; gap:8px;
+    text-align:center; text-decoration:none; width:100%; margin-top:8px; border:none;
+  }
   .provider-box {
     display:flex; align-items:center; justify-content:space-between; gap:10px; background:#f8f9fa;
     border-radius:12px; padding:10px 12px; margin-top:10px; font-size:12.5px; color:#3c4043;
@@ -441,12 +444,174 @@ function statusBadge(status) {
   return `<span class="badge ${status}">${labels[status] || status}</span>`;
 }
 
-function waLink(r) {
-  const text = encodeURIComponent(
-    `Corte de ${SERVICE_LABELS[r.service_type]} reportado en ${r.distrito ? r.distrito + ', ' : ''}${r.canton || 'Costa Rica'} (${timeAgo(r.created_at)}).\nVer en el mapa: https://www.google.com/maps?q=${r.lat},${r.lng}\nReportado en ReportaCR`
-  );
-  return `https://wa.me/?text=${text}`;
+function serviceHeadline(type) {
+  return type === 'otro' ? 'Corte reportado' : `Corte de ${SERVICE_LABELS[type]}`;
 }
+
+function shareText(r) {
+  return `${serviceHeadline(r.service_type)} en ${r.distrito ? r.distrito + ', ' : ''}${r.canton || 'Costa Rica'} (${timeAgo(r.created_at)}).\nVer en el mapa: https://www.google.com/maps?q=${r.lat},${r.lng}\nReportado en ReportaCR`;
+}
+
+function waLink(r) {
+  return `https://wa.me/?text=${encodeURIComponent(shareText(r))}`;
+}
+
+// ---------- SHARE CARD (Canvas-generated image for sharing) ----------
+const CARD_SIZE = 1080;
+
+let brandLogoImg = null;
+function loadBrandLogo() {
+  if (brandLogoImg) return Promise.resolve(brandLogoImg);
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => { brandLogoImg = img; resolve(img); };
+    img.onerror = () => resolve(null);
+    img.src = 'icon-512.png';
+  });
+}
+
+function shadeColor(hex, amount) {
+  const num = parseInt(hex.slice(1), 16);
+  const clamp = (v) => Math.max(0, Math.min(255, v));
+  const r = clamp((num >> 16) + amount);
+  const g = clamp(((num >> 8) & 0xff) + amount);
+  const b = clamp((num & 0xff) + amount);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  if (ctx.roundRect) { ctx.roundRect(x, y, w, h, r); return; }
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function wrapCenteredText(ctx, text, cx, y, maxWidth, lineHeight) {
+  const words = text.split(' ');
+  const lines = [];
+  let line = '';
+  for (const word of words) {
+    const test = line ? line + ' ' + word : word;
+    if (line && ctx.measureText(test).width > maxWidth) { lines.push(line); line = word; }
+    else { line = test; }
+  }
+  if (line) lines.push(line);
+  lines.forEach((l, i) => ctx.fillText(l, cx, y + i * lineHeight));
+  return lines.length;
+}
+
+async function generateShareCard(r) {
+  if (document.fonts && document.fonts.ready) {
+    try {
+      await Promise.all([
+        document.fonts.load('400 400px "Material Symbols Outlined"'),
+        document.fonts.ready
+      ]);
+    } catch (e) {}
+  }
+  const logo = await loadBrandLogo();
+
+  const canvas = document.createElement('canvas');
+  canvas.width = CARD_SIZE;
+  canvas.height = CARD_SIZE;
+  const ctx = canvas.getContext('2d');
+  const color = SERVICE_COLORS[r.service_type];
+  const FONT = '-apple-system, "Segoe UI", Roboto, Arial, sans-serif';
+
+  // Background: service color gradient
+  const grad = ctx.createLinearGradient(0, 0, CARD_SIZE, CARD_SIZE);
+  grad.addColorStop(0, color);
+  grad.addColorStop(1, shadeColor(color, -35));
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, CARD_SIZE, CARD_SIZE);
+
+  // Brand row
+  if (logo) ctx.drawImage(logo, 64, 56, 72, 72);
+  ctx.fillStyle = 'rgba(255,255,255,0.95)';
+  ctx.font = `700 42px ${FONT}`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('ReportaCR', logo ? 150 : 64, 92);
+
+  // Icon badge
+  const badgeCY = 430, badgeR = 165;
+  ctx.beginPath();
+  ctx.arc(CARD_SIZE / 2, badgeCY, badgeR, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.96)';
+  ctx.fill();
+  ctx.fillStyle = color;
+  ctx.font = `400 ${Math.round(badgeR * 1.15)}px "Material Symbols Outlined"`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(SERVICE_ICONS[r.service_type], CARD_SIZE / 2, badgeCY + Math.round(badgeR * 0.08));
+
+  // Service title
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `800 74px ${FONT}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(serviceHeadline(r.service_type), CARD_SIZE / 2, 668);
+
+  // Location (wraps to a 2nd line if long)
+  const location = `${r.distrito ? r.distrito + ', ' : ''}${r.canton || 'Costa Rica'}`;
+  ctx.font = `500 40px ${FONT}`;
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  const locLines = wrapCenteredText(ctx, location, CARD_SIZE / 2, 726, CARD_SIZE - 180, 50);
+  const pillY = 760 + (locLines - 1) * 50;
+
+  // Status + time pill
+  const labels = { reportado: 'Reportado', verificado: 'Verificado', resuelto: 'Resuelto' };
+  const pillText = `${labels[r.status] || r.status} · ${timeAgo(r.created_at)}`;
+  ctx.font = `700 32px ${FONT}`;
+  const pillPadX = 30, pillH = 62;
+  const pillW = ctx.measureText(pillText).width + pillPadX * 2;
+  roundRectPath(ctx, CARD_SIZE / 2 - pillW / 2, pillY, pillW, pillH, pillH / 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.22)';
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(pillText, CARD_SIZE / 2, pillY + pillH / 2 + 2);
+
+  // Footer
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(64, 970); ctx.lineTo(CARD_SIZE - 64, 970); ctx.stroke();
+  ctx.font = `500 28px ${FONT}`;
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText('Reporte comunitario, no oficial · ReportaCR', CARD_SIZE / 2, 1014);
+
+  return canvas;
+}
+
+window.shareReport = async function(reportId) {
+  const entry = markers[reportId];
+  if (!entry) return;
+  const r = entry.data;
+
+  if (navigator.share && navigator.canShare) {
+    try {
+      const canvas = await generateShareCard(r);
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.92));
+      const file = new File([blob], `reportacr-${r.service_type}.jpg`, { type: 'image/jpeg' });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'ReportaCR', text: shareText(r) });
+        return;
+      }
+    } catch (e) {
+      if (e && e.name === 'AbortError') return; // user closed the native share sheet, not an error
+      console.error(e);
+    }
+  }
+  // Desktop / unsupported browsers: fall back to the previous WhatsApp link behavior
+  window.open(waLink(r), '_blank');
+};
 
 function upsertMarker(r) {
   if (r.status === 'descartado') { removeMarker(r.id); return; }
@@ -710,7 +875,7 @@ function renderDetailSheet(r) {
         ${iReportedToProvider ? icon('check') + ' Ya avisaste' : 'Yo también avisé'}
       </button>
     </div>
-    <a class="pill-btn share" target="_blank" href="${waLink(r)}">Compartir por WhatsApp</a>
+    <button class="pill-btn share" onclick="shareReport('${r.id}')">${icon('share')} Compartir corte</button>
   `;
 }
 
