@@ -1,7 +1,11 @@
 // Service worker mínimo: cachea el shell de la app para que cargue rápido
 // y sea instalable. No cachea datos de Supabase (siempre deben ser frescos).
-const CACHE = 'reportacr-shell-v2';
-const SHELL = ['./index.html', './manifest.json', './icon-192.png', './icon-512.png', './privacy.html'];
+const CACHE = 'reportacr-shell-v3';
+const SHELL = [
+  './index.html', './manifest.json', './privacy.html',
+  './icon-192.png', './icon-512.png', './apple-touch-icon.png',
+  './favicon.ico', './favicon.svg', './favicon-16.png', './favicon-32.png'
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)));

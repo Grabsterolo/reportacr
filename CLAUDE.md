@@ -10,7 +10,8 @@ www/                 ← código fuente de la app (HTML/CSS/JS puro, sin build s
   manifest.json        ← manifest de PWA
   sw.js                ← service worker (cachea el shell, nunca los datos de Supabase)
   privacy.html          ← política de privacidad (requerida por App Store / Google Play)
-  icon-192.png, icon-512.png
+  icon-192.png, icon-512.png, apple-touch-icon.png ← ícono de la app (pin + rayo, ver logo)
+  favicon.ico, favicon.svg, favicon-16.png, favicon-32.png ← favicon del navegador
 
 android/              ← proyecto nativo generado por Capacitor (Android Studio). No editar a mano salvo AndroidManifest.xml / recursos nativos.
 ios/                  ← proyecto nativo generado por Capacitor (Xcode). No editar a mano salvo Info.plist / assets.

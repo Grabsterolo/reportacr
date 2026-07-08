@@ -6,15 +6,33 @@
 <title>ReportaCR — Reporta cortes de servicio</title>
 <meta name="description" content="Reporta y consulta cortes de luz, agua, internet y más en tiempo real en Costa Rica. Comunitario, gratuito y sin necesidad de cuenta.">
 <link rel="manifest" href="manifest.json">
-<link rel="icon" href="icon-192.png">
-<link rel="apple-touch-icon" href="icon-192.png">
-<meta name="theme-color" content="#ffffff">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#1A73E8">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,300..500,0..1,0">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+  // Defensive check: on a bad mobile connection these CDN scripts can fail to load,
+  // which otherwise leaves a blank white screen with no explanation.
+  if (typeof L === 'undefined' || typeof supabase === 'undefined') {
+    document.addEventListener('DOMContentLoaded', function () {
+      document.body.insertAdjacentHTML('afterbegin',
+        '<div style="position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;' +
+        'text-align:center;padding:32px;font-family:-apple-system,Roboto,Arial,sans-serif;background:#F1F3F4;' +
+        'color:#202124;font-size:15px;line-height:1.5;">' +
+        '<div>No se pudo cargar ReportaCR.<br>Revisa tu conexión a internet e intenta de nuevo.<br><br>' +
+        '<button onclick="location.reload()" style="background:#1A73E8;color:white;border:none;padding:12px 22px;' +
+        'border-radius:24px;font-size:14px;font-weight:600;">Reintentar</button></div></div>');
+    });
+  }
+</script>
 <style>
   :root{
     --blue:#1A73E8; --blue-dark:#0B57D0; --ink:#202124; --ink-soft:#5F6368; --line:#DADCE0; --bg:#F1F3F4;
@@ -34,7 +52,7 @@
   .material-symbols-outlined.fill { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
   html, body { margin:0; padding:0; height:100%; font-family: -apple-system, BlinkMacSystemFont, "Google Sans", Roboto, "Segoe UI", Arial, sans-serif; color:var(--ink); background:var(--bg); overscroll-behavior:none; }
   button { font-family: inherit; }
-  #app { position:relative; height:100vh; width:100vw; overflow:hidden; }
+  #app { position:relative; height:100vh; height:100dvh; width:100vw; overflow:hidden; }
   #map { position:absolute; inset:0; z-index:1; }
   .leaflet-control-attribution { font-size:9px; }
 
@@ -97,8 +115,15 @@
   #overlay { position:fixed; inset:0; background:rgba(32,33,36,0.5); z-index:3000; display:none; }
   .sheet {
     position:fixed; left:0; right:0; bottom:0; z-index:3001; background:white;
-    border-radius:20px 20px 0 0; padding:8px 20px calc(20px + var(--sab)); max-height:90vh; overflow-y:auto;
+    border-radius:20px 20px 0 0; padding:8px 20px calc(20px + var(--sab)); max-height:90vh; max-height:90dvh; overflow-y:auto;
     display:none; box-shadow:0 -8px 30px rgba(0,0,0,0.25); transition:transform .18s ease-out;
+  }
+  .sheet.opening { animation: sheetIn .22s ease-out; }
+  @keyframes sheetIn { from { transform:translateY(28px); opacity:0; } to { transform:translateY(0); opacity:1; } }
+  .sheet-close-btn {
+    position:absolute; top:10px; right:10px; width:32px; height:32px; border-radius:50%;
+    background:#f1f3f4; border:none; color:#3c4043; cursor:pointer; display:flex; align-items:center;
+    justify-content:center; font-size:20px; z-index:1;
   }
   .drag-handle { width:36px; height:4px; background:#dadce0; border-radius:3px; margin:6px auto 14px; }
   .sheet h2 { margin:0 0 4px; color:var(--ink); font-size:19px; font-weight:700; }
@@ -124,7 +149,6 @@
   textarea:focus, input:focus { outline:2px solid var(--blue); background:white; }
   #loc-status { font-size:12.5px; color:var(--ink-soft); margin-top:8px; display:flex; align-items:center; gap:6px; }
   #loc-status.ready { color:var(--ok); }
-  #photo-input { margin-top:8px; font-size:12px; }
 
   #submit-btn {
     margin-top:20px; width:100%; background:var(--blue); color:white; border:none; border-radius:26px;
@@ -166,10 +190,47 @@
   #info-sheet .info-row { display:flex; justify-content:space-between; font-size:13.5px; padding:8px 0; border-bottom:1px solid #f1f3f4; }
   #info-sheet .legal-text { font-size:12px; color:var(--ink-soft); line-height:1.5; margin-top:12px; }
 
+  /* ---------- Toast ---------- */
+  #toast {
+    position:fixed; left:50%; bottom:calc(24px + var(--sab)); transform:translateX(-50%) translateY(16px);
+    background:#202124; color:white; padding:12px 20px; border-radius:24px; font-size:13.5px; font-weight:600;
+    box-shadow:0 4px 16px rgba(0,0,0,0.3); z-index:5000; opacity:0; pointer-events:none;
+    transition:opacity .2s, transform .2s; max-width:calc(100vw - 48px); text-align:center;
+  }
+  #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+  /* ---------- Photo upload control ---------- */
+  #photo-input { position:absolute; width:1px; height:1px; opacity:0; overflow:hidden; }
+  .photo-picker-btn {
+    display:inline-flex; align-items:center; gap:6px; background:none; border:1px solid var(--line);
+    border-radius:20px; padding:8px 14px; font-size:12.5px; font-weight:600; color:#3c4043; cursor:pointer;
+  }
+  .photo-preview { position:relative; width:84px; height:84px; border-radius:12px; overflow:hidden; margin-top:8px; }
+  .photo-preview img { width:100%; height:100%; object-fit:cover; display:block; }
+  .photo-remove-btn {
+    position:absolute; top:4px; right:4px; width:22px; height:22px; border-radius:50%; border:none;
+    background:rgba(32,33,36,0.6); color:white; display:flex; align-items:center; justify-content:center;
+    font-size:14px; cursor:pointer;
+  }
+
+  /* ---------- Desktop hover polish (skip on touch devices) ---------- */
+  @media (hover:hover) and (pointer:fine) {
+    .filter-chip:hover { border-color:#b3c6f7; background:#f8faff; }
+    .filter-chip.active:hover { background:#e8f0fe; }
+    .service-btn:hover { border-color:#c7d8fb; }
+    .service-btn.selected:hover { border-color:var(--blue); }
+    #view-toggle button:hover:not(.active) { color:var(--ink); }
+    #fab:hover { background:var(--blue-dark); }
+    #locate-btn:hover, #menu-btn:hover, .sheet-close-btn:hover, .photo-remove-btn:hover { background:#e8eaed; }
+    .pill-btn:hover { filter:brightness(0.96); }
+    .list-card:hover { box-shadow:0 2px 8px rgba(60,64,67,0.22); }
+    #manual-pin-btn:hover, .photo-picker-btn:hover { background:#f8f9fa; }
+  }
+
   @media (min-width: 700px) {
     .sheet {
       left:50%; right:auto; width:440px; margin-left:-220px; border-radius:20px;
-      top:0; bottom:0; margin-top:auto; margin-bottom:auto; height:fit-content; max-height:82vh;
+      top:0; bottom:0; margin-top:auto; margin-bottom:auto; height:fit-content; max-height:82vh; max-height:82dvh;
     }
   }
 </style>
@@ -186,7 +247,7 @@
 
   <div id="top-chrome">
     <div id="search-pill">
-      <button id="menu-btn"><span class="material-symbols-outlined">menu</span></button>
+      <button id="menu-btn" aria-label="Menú"><span class="material-symbols-outlined">menu</span></button>
       <div class="titles">
         <div class="t1">ReportaCR</div>
         <div class="t2" id="stats-line">Cargando reportes…</div>
@@ -216,6 +277,7 @@
 
 <div class="sheet" id="sheet">
   <div class="drag-handle" id="sheet-handle"></div>
+  <button class="sheet-close-btn" id="sheet-close-btn" aria-label="Cerrar"><span class="material-symbols-outlined">close</span></button>
   <h2>Reportar un corte</h2>
   <div class="sub">Toma menos de 15 segundos. No necesitas cuenta.</div>
 
@@ -238,6 +300,13 @@
 
   <label class="field-label">Foto (opcional)</label>
   <input type="file" id="photo-input" accept="image/*" capture="environment">
+  <label for="photo-input" class="photo-picker-btn" id="photo-picker-label">
+    <span class="material-symbols-outlined">photo_camera</span> Agregar foto
+  </label>
+  <div class="photo-preview" id="photo-preview" style="display:none;">
+    <img id="photo-preview-img" alt="Foto adjunta">
+    <button type="button" class="photo-remove-btn" id="photo-remove-btn" aria-label="Quitar foto"><span class="material-symbols-outlined" style="font-size:14px;">close</span></button>
+  </div>
 
   <button id="submit-btn" disabled>Selecciona un servicio</button>
   <div id="submit-msg"></div>
@@ -245,11 +314,13 @@
 
 <div class="sheet" id="detail-sheet">
   <div class="drag-handle"></div>
+  <button class="sheet-close-btn" id="detail-close-btn" aria-label="Cerrar"><span class="material-symbols-outlined">close</span></button>
   <div id="detail-content"></div>
 </div>
 
 <div class="sheet" id="info-sheet">
   <div class="drag-handle"></div>
+  <button class="sheet-close-btn" id="info-close-btn" aria-label="Cerrar"><span class="material-symbols-outlined">close</span></button>
   <h2>ReportaCR</h2>
   <div class="sub">Plataforma comunitaria de reportes de cortes de servicio</div>
   <div class="info-row"><span>Reportes activos</span><b id="info-total">—</b></div>
@@ -314,6 +385,14 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors',
   maxZoom: 19
 }).addTo(map);
+
+// Mobile browsers resize the viewport when the address bar collapses/expands on
+// scroll, and Leaflet doesn't pick that up on its own — keeps the map filled in.
+let resizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => map.invalidateSize(), 150);
+});
 
 const markers = {}; // id -> {marker, data}
 let currentFilter = 'all';
@@ -408,6 +487,7 @@ document.querySelectorAll('#view-toggle button').forEach(btn => {
       mapEl.style.display = 'block';
       listEl.style.display = 'none';
       Object.values(markers).forEach(applyFilterToMarker);
+      map.invalidateSize();
     }
   });
 });
@@ -480,12 +560,33 @@ sb.channel('public:reports')
   })
   .subscribe();
 
+// ---------- TOAST (lightweight feedback messages) ----------
+let toastTimer = null;
+function showToast(message, ms) {
+  let t = document.getElementById('toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast';
+    document.body.appendChild(t);
+  }
+  t.textContent = message;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), ms || 3000);
+}
+
+// ---------- CONNECTION STATUS (mobile data can be unreliable) ----------
+window.addEventListener('offline', () => showToast('Sin conexión a internet. Los reportes no se podrán enviar.', 4000));
+window.addEventListener('online', () => showToast('Conexión restaurada.', 2000));
+
 // ---------- LOCATE BUTTON ----------
 document.getElementById('locate-btn').addEventListener('click', () => {
-  if (!navigator.geolocation) return;
+  if (!navigator.geolocation) { showToast('Tu dispositivo no soporta ubicación.'); return; }
   navigator.geolocation.getCurrentPosition(pos => {
     map.setView([pos.coords.latitude, pos.coords.longitude], 14);
-  });
+  }, () => {
+    showToast('No se pudo obtener tu ubicación. Revisa los permisos del navegador.');
+  }, { enableHighAccuracy:true, timeout:8000 });
 });
 
 // ---------- SHEET HELPERS (generic open/close + swipe to dismiss) ----------
@@ -494,6 +595,9 @@ function openAnySheet(el) {
   overlay.style.display = 'block';
   el.style.display = 'block';
   el.style.transform = 'translateY(0)';
+  el.classList.remove('opening');
+  void el.offsetWidth;
+  el.classList.add('opening');
 }
 function closeAnySheet(el) {
   overlay.style.display = 'none';
@@ -519,12 +623,14 @@ function attachSwipeToClose(sheetEl, handleEl, onClose) {
 const infoSheet = document.getElementById('info-sheet');
 document.getElementById('menu-btn').addEventListener('click', () => openAnySheet(infoSheet));
 attachSwipeToClose(infoSheet, infoSheet.querySelector('.drag-handle'), () => closeAnySheet(infoSheet));
+document.getElementById('info-close-btn').addEventListener('click', () => closeAnySheet(infoSheet));
 
 // ---------- DETAIL SHEET ----------
 const detailSheet = document.getElementById('detail-sheet');
 const detailContent = document.getElementById('detail-content');
 let detailSheetOpenId = null;
 attachSwipeToClose(detailSheet, detailSheet.querySelector('.drag-handle'), () => { closeAnySheet(detailSheet); detailSheetOpenId = null; });
+document.getElementById('detail-close-btn').addEventListener('click', () => { closeAnySheet(detailSheet); detailSheetOpenId = null; });
 
 window.openDetailSheet = function(reportId) {
   const entry = markers[reportId];
@@ -543,7 +649,7 @@ function renderDetailSheet(r) {
     <div class="detail-title">${SERVICE_LABELS[r.service_type]} ${statusBadge(r.status)}</div>
     <div class="detail-meta">${r.provider ? r.provider + ' · ' : ''}${r.distrito ? r.distrito + ', ' : ''}${r.canton || 'Costa Rica'} · ${timeAgo(r.created_at)}</div>
     ${r.description ? `<div class="detail-desc">"${r.description}"</div>` : ''}
-    ${r.photo_url ? `<img src="${r.photo_url}" style="width:100%;border-radius:12px;margin-bottom:12px;">` : ''}
+    ${r.photo_url ? `<img src="${r.photo_url}" style="width:100%;max-height:220px;object-fit:cover;border-radius:12px;margin-bottom:12px;" loading="lazy">` : ''}
     <div class="detail-counts">
       <span>${icon('check_circle')} ${r.confirm_count} confirman</span>
       <span>${icon('replay')} ${r.resolved_votes} dicen resuelto</span>
@@ -567,13 +673,20 @@ const submitBtn = document.getElementById('submit-btn');
 const submitMsg = document.getElementById('submit-msg');
 const pinModeBanner = document.getElementById('pin-mode-banner');
 const manualPinBtn = document.getElementById('manual-pin-btn');
+const photoInput = document.getElementById('photo-input');
+const photoPreview = document.getElementById('photo-preview');
+const photoPreviewImg = document.getElementById('photo-preview-img');
+const photoPickerLabel = document.getElementById('photo-picker-label');
+const photoRemoveBtn = document.getElementById('photo-remove-btn');
 
 let selectedType = null;
 let currentPos = null;
+let selectedPhotoBlob = null;
 let pinModeActive = false;
 let tempPinMarker = null;
 
 attachSwipeToClose(sheet, document.getElementById('sheet-handle'), closeReportSheet);
+document.getElementById('sheet-close-btn').addEventListener('click', closeReportSheet);
 
 function openReportSheet() {
   openAnySheet(sheet);
@@ -636,6 +749,38 @@ serviceGrid.querySelectorAll('.service-btn').forEach(btn => {
   });
 });
 
+// Reduce a photo to a reasonable size/quality client-side before upload, since users
+// report from mobile data and phone camera photos can be several MB each.
+async function compressImage(file, maxDim = 1600, quality = 0.82) {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
+    const w = Math.round(bitmap.width * scale);
+    const h = Math.round(bitmap.height * scale);
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+    return blob || file;
+  } catch (e) { return file; }
+}
+
+photoInput.addEventListener('change', async () => {
+  const file = photoInput.files && photoInput.files[0];
+  if (!file || !file.type.startsWith('image/')) { photoInput.value = ''; return; }
+  selectedPhotoBlob = await compressImage(file);
+  photoPreviewImg.src = URL.createObjectURL(selectedPhotoBlob);
+  photoPreview.style.display = 'block';
+  photoPickerLabel.style.display = 'none';
+});
+
+photoRemoveBtn.addEventListener('click', () => {
+  selectedPhotoBlob = null;
+  photoInput.value = '';
+  photoPreview.style.display = 'none';
+  photoPickerLabel.style.display = 'inline-flex';
+});
+
 function updateSubmitState() {
   const ready = selectedType && currentPos;
   submitBtn.disabled = !ready;
@@ -656,10 +801,9 @@ async function reverseGeocode(lat, lng) {
   } catch (e) { return { canton: null, distrito: null }; }
 }
 
-async function uploadPhoto(file) {
-  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-  const path = `${DEVICE_TOKEN}/${Date.now()}.${ext}`;
-  const { error } = await sb.storage.from('report-photos').upload(path, file, { upsert:false });
+async function uploadPhoto(blob) {
+  const path = `${DEVICE_TOKEN}/${Date.now()}.jpg`;
+  const { error } = await sb.storage.from('report-photos').upload(path, blob, { upsert:false, contentType:'image/jpeg' });
   if (error) { console.error(error); return null; }
   const { data } = sb.storage.from('report-photos').getPublicUrl(path);
   return data.publicUrl;
@@ -674,9 +818,8 @@ submitBtn.addEventListener('click', async () => {
   try {
     const geo = await reverseGeocode(currentPos.lat, currentPos.lng);
     let photoUrl = null;
-    const fileInput = document.getElementById('photo-input');
-    if (fileInput.files && fileInput.files[0]) {
-      photoUrl = await uploadPhoto(fileInput.files[0]);
+    if (selectedPhotoBlob) {
+      photoUrl = await uploadPhoto(selectedPhotoBlob);
     }
     const description = document.getElementById('desc-input').value.trim() || null;
 
@@ -720,9 +863,12 @@ submitBtn.addEventListener('click', async () => {
 function resetForm() {
   selectedType = null;
   currentPos = null;
+  selectedPhotoBlob = null;
   serviceGrid.querySelectorAll('.service-btn').forEach(b => b.classList.remove('selected'));
   document.getElementById('desc-input').value = '';
-  document.getElementById('photo-input').value = '';
+  photoInput.value = '';
+  photoPreview.style.display = 'none';
+  photoPickerLabel.style.display = 'inline-flex';
   submitMsg.textContent = '';
   submitBtn.disabled = true;
   submitBtn.textContent = 'Selecciona un servicio';
