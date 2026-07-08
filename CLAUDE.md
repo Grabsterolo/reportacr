@@ -37,9 +37,10 @@ README.md             ← instrucciones de build/publicación
 - Proyecto: `ReportaCR`, ref `mrncqbhoojhrbqchogfz`, org `Aurevo`.
 - URL: `https://mrncqbhoojhrbqchogfz.supabase.co`
 - La anon key pública ya está embebida en `www/index.html` (es pública por diseño, protegida por RLS — no es un secreto).
-- Tablas: `reports`, `confirmations`. Funciones RPC: `submit_report(...)`, `cast_vote(...)`.
+- Tablas: `reports`, `confirmations`, `provider_reports` (marca de "ya avisé al proveedor", independiente del voto de estado). Funciones RPC: `submit_report(...)`, `cast_vote(...)`, `report_to_provider(...)`.
+- El estado de un reporte (`reportado → verificado → resuelto`, o `descartado`) lo recalcula el trigger `update_report_counts` en cada voto: `resuelto` con 2+ votos "Ya volvió", `descartado` con 3+ "No es cierto" que superen a los que confirman, `verificado` con 3+ confirmaciones. No hay expiración automática por tiempo a nivel de base de datos — los reportes quedan en la tabla para siempre. Lo que sí expira es la vista: `www/index.html` (`loadReports`) solo carga reportes de las últimas 48 horas.
 - Toda escritura pasa por las funciones RPC (RLS bloquea inserts directos a las tablas). Ver el documento `docs/ReportaCR_Plan_de_Plataforma.docx` para el modelo de datos completo.
-- Si necesitas cambiar el esquema, usa el dashboard de Supabase (supabase.com/dashboard) o el CLI de Supabase (`supabase login`, `supabase link --project-ref mrncqbhoojhrbqchogfz`) — esta sesión de Claude Code no tiene la conexión MCP a Supabase que sí tenía Cowork, así que los cambios de base de datos aquí requieren tu propia sesión autenticada.
+- Esta sesión de Claude Code sí tiene conexión MCP a Supabase (herramientas `mcp__<id>__*` como `execute_sql`, `apply_migration`, `list_tables`) — puede consultar y migrar el esquema directamente. Confirma con el usuario antes de aplicar cualquier migración a producción. Si por algún motivo no está disponible, usa el dashboard de Supabase o el CLI (`supabase login`, `supabase link --project-ref mrncqbhoojhrbqchogfz`).
 
 ## Diseño
 

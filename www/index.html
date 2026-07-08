@@ -181,6 +181,17 @@
   .pill-btn.resolved { background:#e8f0fe; color:var(--blue-dark); }
   .pill-btn.deny { background:#fce8e6; color:var(--danger); }
   .pill-btn.share { background:#25D366; color:white; display:block; text-align:center; text-decoration:none; width:100%; margin-top:8px; }
+  .provider-box {
+    display:flex; align-items:center; justify-content:space-between; gap:10px; background:#f8f9fa;
+    border-radius:12px; padding:10px 12px; margin-top:10px; font-size:12.5px; color:#3c4043;
+  }
+  .provider-box.reported { background:#e8f0fe; color:var(--blue-dark); }
+  .provider-box-text { display:flex; align-items:center; gap:8px; flex:1; min-width:0; }
+  .provider-btn {
+    flex:0 0 auto; background:white; border:1px solid var(--line); border-radius:20px; color:var(--blue-dark);
+    padding:8px 12px; font-size:12px; font-weight:700; cursor:pointer;
+  }
+  .provider-btn:disabled { opacity:0.55; cursor:default; }
   .badge { display:inline-block; font-size:10.5px; font-weight:800; padding:3px 9px; border-radius:10px; }
   .badge.verificado { background:#e6f4ea; color:var(--ok); }
   .badge.reportado { background:#f1f3f4; color:#5f6368; }
@@ -225,6 +236,7 @@
     .pill-btn:hover { filter:brightness(0.96); }
     .list-card:hover { box-shadow:0 2px 8px rgba(60,64,67,0.22); }
     #manual-pin-btn:hover, .photo-picker-btn:hover { background:#f8f9fa; }
+    .provider-btn:not(:disabled):hover { background:#f1f3f4; }
   }
 
   @media (min-width: 700px) {
@@ -378,6 +390,18 @@ function saveMyReport(id) {
   } catch(e) {}
 }
 
+// Whether this device already marked a report as escalated to the provider.
+// Kept separate from myVotesStore: reporting to the provider is an independent
+// fact, not mutually exclusive with the sigue/resuelto/no_es_cierto status vote.
+function myProviderReportsStore() {
+  try { return JSON.parse(localStorage.getItem('reportacr_provider_reports') || '{}'); } catch(e) { return {}; }
+}
+function saveMyProviderReport(reportId) {
+  const store = myProviderReportsStore();
+  store[reportId] = true;
+  localStorage.setItem('reportacr_provider_reports', JSON.stringify(store));
+}
+
 // ---------- MAP ----------
 const map = L.map('map', { zoomControl:false }).setView([9.7489, -83.7534], 8);
 L.control.zoom({ position:'bottomleft' }).addTo(map);
@@ -524,6 +548,19 @@ window.vote = async function(reportId, voteType) {
   } catch (e) { console.error(e); }
 };
 
+// Marks a report as already escalated to the official provider (ICE/AyA/etc.),
+// so people can tell whether someone already called it in before doing so themselves.
+window.reportToProvider = async function(reportId) {
+  saveMyProviderReport(reportId);
+  const entry = markers[reportId];
+  if (entry) renderDetailSheet(entry.data);
+  try {
+    const { data, error } = await sb.rpc('report_to_provider', { p_report_id: reportId, p_device_token: DEVICE_TOKEN });
+    if (error) throw error;
+    if (entry) { entry.data.provider_report_count = data; renderDetailSheet(entry.data); }
+  } catch (e) { console.error(e); }
+};
+
 // ---------- STATS ----------
 function refreshStats() {
   const all = Object.values(markers).map(m => m.data);
@@ -644,6 +681,8 @@ window.openDetailSheet = function(reportId) {
 function renderDetailSheet(r) {
   const myVote = myVotesStore()[r.id];
   const dim = (v) => myVote === v ? 'opacity:0.45;' : '';
+  const iReportedToProvider = !!myProviderReportsStore()[r.id];
+  const providerCount = r.provider_report_count || 0;
   detailContent.innerHTML = `
     <div class="detail-icbadge" style="background:${SERVICE_BG[r.service_type]};">${svcIcon(r.service_type)}</div>
     <div class="detail-title">${SERVICE_LABELS[r.service_type]} ${statusBadge(r.status)}</div>
@@ -659,6 +698,17 @@ function renderDetailSheet(r) {
       <button class="pill-btn confirm" style="${dim('sigue')}" onclick="vote('${r.id}','sigue')">Sigue sin servicio</button>
       <button class="pill-btn resolved" style="${dim('resuelto')}" onclick="vote('${r.id}','resuelto')">Ya volvió</button>
       <button class="pill-btn deny" style="${dim('no_es_cierto')}" onclick="vote('${r.id}','no_es_cierto')">No es cierto</button>
+    </div>
+    <div class="provider-box ${providerCount > 0 ? 'reported' : ''}">
+      <div class="provider-box-text">
+        <span class="material-symbols-outlined">campaign</span>
+        <span>${providerCount > 0
+          ? `${providerCount} persona${providerCount === 1 ? '' : 's'} ya avisó al proveedor`
+          : 'Nadie ha avisado al proveedor todavía'}</span>
+      </div>
+      <button class="provider-btn" ${iReportedToProvider ? 'disabled' : ''} onclick="reportToProvider('${r.id}')">
+        ${iReportedToProvider ? icon('check') + ' Ya avisaste' : 'Yo también avisé'}
+      </button>
     </div>
     <a class="pill-btn share" target="_blank" href="${waLink(r)}">Compartir por WhatsApp</a>
   `;
